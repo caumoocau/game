@@ -94,10 +94,10 @@ const COURSES=[
   ['edu','AI로 설계하는 수업의 미래'],['edu','AI 기반 교수설계 포트폴리오 멘토링']
 ];
 const STAGES=[
-  {at:0,   name:'흑석역', sky:'#FDF3F8', far:'#F2D6E3'},
-  {at:.28, name:'중앙대 정문', sky:'#EFF8FD', far:'#BFE3F2'},
-  {at:.58, name:'203관 앞',   sky:'#FBF6EE', far:'#E8D9C3'},
-  {at:.86, name:'310관 앞',   sky:'#EAF4FB', far:'#A8CFE8'}
+  {at:0,   name:'흑석역', sky:'#FFF6FB', far:'#FBD9EA', ground:'#FBF3EC', line:'#F0DFD2'},
+  {at:.28, name:'중앙대 정문', sky:'#F2FBFF', far:'#C7EBFA', ground:'#F3FAF6', line:'#D8EDE2'},
+  {at:.58, name:'203관 앞',   sky:'#FFFBF0', far:'#FFE6B8', ground:'#FDF6E8', line:'#F2E2C6'},
+  {at:.86, name:'310관 앞',   sky:'#F4F6FF', far:'#CFD6FA', ground:'#F6F5FD', line:'#E1DEF5'}
 ];
 const OBSTACLES=[
   {icon:'⏰',w:52,h:52,label:'알람시계'},
@@ -219,13 +219,13 @@ function draw(){
     const bx=((i*210)-(st.dist*0.25)%210)-40;
     const bh=90+((i*53)%80);
     CX.fillRect(bx,GROUND-70-bh,120,bh+10);
-    CX.fillStyle='rgba(255,255,255,0.35)';
+    CX.fillStyle='rgba(255,255,255,0.62)';
     for(let wy=0;wy<3;wy++)for(let wx=0;wx<3;wx++) CX.fillRect(bx+14+wx*36,GROUND-50-bh+wy*34,18,16);
     CX.fillStyle=stg.far;
   }
-  CX.fillStyle='#5f7d99'; CX.fillRect(-20,GROUND-62,W+40,10);
-  CX.fillStyle='#e9e4da'; CX.fillRect(-20,GROUND,W+40,H-GROUND);
-  CX.fillStyle='#d6cfc2';
+  CX.fillStyle='#9BB6CC'; CX.fillRect(-20,GROUND-62,W+40,10);
+  CX.fillStyle=stg.ground||'#FAF7F1'; CX.fillRect(-20,GROUND,W+40,H-GROUND);
+  CX.fillStyle=stg.line||'#EDE5D8';
   for(let i=0;i<10;i++){ const lx=((i*120)-(st.dist)%120); CX.fillRect(lx,GROUND+34,64,8); }
 
   CX.font='40px serif'; CX.textAlign='center';
@@ -260,7 +260,7 @@ function draw(){
     CX.restore();
   }
 
-  CX.fillStyle='rgba(255,255,255,0.88)'; CX.fillRect(0,0,W,54);
+  CX.fillStyle='rgba(255,255,255,0.95)'; CX.fillRect(0,0,W,54);
   CX.fillStyle='#143365'; CX.font='700 19px Pretendard,sans-serif';
   CX.textAlign='left';
   CX.fillText('♥'.repeat(st.hearts)+'♡'.repeat(Math.max(0,3-st.hearts)),20,35);
@@ -268,8 +268,8 @@ function draw(){
   CX.fillText('310관까지 '+Math.max(0,Math.ceil((TOTAL-st.dist)/20))+'m',W/2,35);
   CX.textAlign='right';
   CX.fillText(st.score+'점',W-20,35);
-  CX.fillStyle='#F2D6E3'; CX.fillRect(0,54,W,8);
-  CX.fillStyle='#2B95C3'; CX.fillRect(0,54,W*prog,8);
+  CX.fillStyle='#F7E4EE'; CX.fillRect(0,54,W,8);
+  CX.fillStyle='#5EC2E0'; CX.fillRect(0,54,W*prog,8);
 
   let ty=86;
   CX.font='700 15px Pretendard,sans-serif'; CX.textAlign='center';
@@ -298,23 +298,38 @@ function recommend(score){
   return '엄청난 순발력! 그 두뇌 회전, <br> <b>딥러닝 기반 자연어처리</b>에 쓰면 최고겠는데요?';
 }
 let NICK='푸앙이', lastSeq=null;
+/* ▼ Firebase Realtime Database URL을 넣어주세요 (끝에 / 없이) */
+const DB_URL='https://moocau-game-default-rtdb.asia-southeast1.firebasedatabase.app';
 const RKEY='puangrun_rank_v1';
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function loadRank(){ try{ return JSON.parse(localStorage.getItem(RKEY))||[]; }catch(e){ return []; } }
-function saveRankList(list){ try{ localStorage.setItem(RKEY,JSON.stringify(list)); }catch(e){} }
+function loadLocal(){ try{ return JSON.parse(localStorage.getItem(RKEY))||[]; }catch(e){ return []; } }
+function saveLocal(list){ try{ localStorage.setItem(RKEY,JSON.stringify(list)); }catch(e){} }
+async function fetchRank(){
+  try{
+    const res=await fetch(DB_URL+'/rank.json');
+    const data=await res.json()||{};
+    const list=Object.values(data);
+    list.sort((a,b)=> b.score-a.score || a.seq-b.seq);
+    saveLocal(list.slice(0,100));
+    return list;
+  }catch(e){ return loadLocal(); }
+}
+async function isNickTaken(nick){
+  const list=await fetchRank();
+  return list.some(r=>r.nick===nick);
+}
 function addRank(nick,score){
-  const list=loadRank();
-  const now=new Date();
-  const p=v=>String(v).padStart(2,'0');
+  const now=new Date(), p=v=>String(v).padStart(2,'0');
   const rec={nick,score,time:p(now.getHours())+':'+p(now.getMinutes())+':'+p(now.getSeconds()),seq:Date.now()};
-  list.push(rec);
-  list.sort((a,b)=> b.score-a.score || a.seq-b.seq);
-  saveRankList(list.slice(0,100));
+  fetch(DB_URL+'/rank.json',{method:'POST',body:JSON.stringify(rec)}).catch(()=>{
+    const list=loadLocal(); list.push(rec); saveLocal(list);
+  });
   return rec.seq;
 }
-function renderRank(){
-  const list=loadRank();
+async function renderRank(){
   const box=document.getElementById('rank-list');
+  box.innerHTML='<div class="rank-row">불러오는 중...</div>';
+  const list=await fetchRank();
   if(!list.length){ box.innerHTML='<div class="rank-row">아직 기록이 없어요. 첫 주자가 되어보세요!</div>'; return; }
   box.innerHTML=list.slice(0,10).map((r,i)=>
     '<div class="rank-row'+(r.seq===lastSeq?' me':'')+'">'
@@ -324,10 +339,10 @@ function renderRank(){
     +'<span class="rank-time">'+r.time+'</span></div>').join('');
 }
 function showRank(){
-  renderRank();
   document.getElementById('ov-start').classList.add('hidden');
   document.getElementById('ov-end').classList.add('hidden');
   document.getElementById('ov-rank').classList.remove('hidden');
+  renderRank();
 }
 
 function end(cleared){
@@ -346,9 +361,16 @@ function end(cleared){
   document.getElementById('end-rec').innerHTML='🎓 푸앙이의 추천 — '+recommend(st.score);
   document.getElementById('ov-end').classList.remove('hidden');
 }
-function start(){
+async function start(){
   const v=document.getElementById('nick').value.trim();
-  NICK= v? v.slice(0,8):'푸앙이';
+  const nick= v? v.slice(0,8):'푸앙이';
+  const btn=document.getElementById('btn-start');
+  const label=btn.textContent;
+  btn.disabled=true; btn.textContent='닉네임 확인 중...';
+  const taken=await isNickTaken(nick);
+  btn.disabled=false; btn.textContent=label;
+  if(taken){ alert('이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해 주세요!'); return; }
+  NICK=nick;
   document.getElementById('ov-start').classList.add('hidden');
   document.getElementById('ov-end').classList.add('hidden');
   document.getElementById('ov-rank').classList.add('hidden');
@@ -367,12 +389,14 @@ document.getElementById('btn-rank-close').addEventListener('click',()=>{
   else document.getElementById('ov-start').classList.remove('hidden');
 });
 const ADMIN_PW='moocauaza';
-document.getElementById('rank-reset').addEventListener('click',()=>{
+document.getElementById('rank-reset').addEventListener('click',async()=>{
   const pw=prompt('운영자 비밀번호를 입력하세요');
   if(pw===null) return;
-  if(pw===ADMIN_PW){
-    if(confirm('랭킹 기록을 전부 삭제할까요? (되돌릴 수 없음)')){ saveRankList([]); renderRank(); alert('랭킹이 초기화되었습니다.'); }
-  } else { alert('비밀번호가 올바르지 않습니다.'); }
+  if(pw!==ADMIN_PW){ alert('비밀번호가 올바르지 않습니다.'); return; }
+  if(confirm('랭킹 기록을 전부 삭제할까요? (되돌릴 수 없음)')){
+    try{ await fetch(DB_URL+'/rank.json',{method:'DELETE'}); }catch(e){}
+    saveLocal([]); renderRank(); alert('랭킹이 초기화되었습니다.');
+  }
 });
 document.getElementById('nick').addEventListener('keydown',e=>{ if(e.key==='Enter') start(); e.stopPropagation(); });
 reset(); st.running=false; draw();
